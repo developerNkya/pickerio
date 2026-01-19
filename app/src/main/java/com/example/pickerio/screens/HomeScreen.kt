@@ -18,6 +18,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -40,6 +41,8 @@ data class HomeScreenProps(
 @Composable
 fun HomeScreen(props: HomeScreenProps) {
     val systemUiController = rememberSystemUiController()
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
 
     // Set status bar/navigation bar colors
     LaunchedEffect(Unit) {
@@ -51,6 +54,7 @@ fun HomeScreen(props: HomeScreenProps) {
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .padding(top = 24.dp) // Added top padding to move everything down
     ) {
         // Animated background blobs
         AnimatedBlobs()
@@ -59,7 +63,7 @@ fun HomeScreen(props: HomeScreenProps) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 48.dp),
+                .padding(horizontal = 24.dp, vertical = 24.dp), // Reduced vertical padding
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -71,10 +75,10 @@ fun HomeScreen(props: HomeScreenProps) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // Animated palette icon
+                // Animated palette icon - moved down
                 FloatingPaletteIcon()
 
-                Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(32.dp)) // Reduced from 40dp
 
                 // Title and description
                 Column(
@@ -112,27 +116,13 @@ fun HomeScreen(props: HomeScreenProps) {
                     )
                 }
 
-                Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(32.dp)) // Reduced from 40dp
 
                 // Color swatches
                 FloatingColorSwatches()
 
-                Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(32.dp)) // Reduced from 40dp
 
-                // Feature tags
-                Row(
-                    modifier = Modifier
-                        .wrapContentWidth()
-                        .fillMaxWidth(0.9f),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    FeatureTag("Snap a photo")
-                    Spacer(modifier = Modifier.width(12.dp))
-                    FeatureTag("Touch to discover")
-                    Spacer(modifier = Modifier.width(12.dp))
-                    FeatureTag("Save your palette")
-                }
             }
 
             // Bottom button area
@@ -227,12 +217,12 @@ private fun AnimatedBlobs() {
         modifier = Modifier
             .fillMaxSize()
     ) {
-        // Blob 1
+        // Blob 1 - Moved down slightly
         Box(
             modifier = Modifier
                 .offset(
                     x = (-80).dp + (40 * cos(blob1Offset)).dp,
-                    y = (-80).dp + (30 * sin(blob1Offset)).dp
+                    y = (-40).dp + (30 * sin(blob1Offset)).dp  // Changed from -80 to -40
                 )
                 .size(256.dp)
                 .clip(CircleShape)
@@ -245,7 +235,7 @@ private fun AnimatedBlobs() {
                 .offset(
                     x = (0.75f * LocalDensity.current.density * 360 - 64).dp +
                             (20 * cos(blob2Offset + 1.5f)).dp,
-                    y = (0.25f * LocalDensity.current.density * 360).dp +
+                    y = (0.25f * LocalDensity.current.density * 360 + 20).dp +  // Added +20
                             (25 * sin(blob2Offset + 1.5f)).dp
                 )
                 .size(192.dp)
@@ -258,7 +248,7 @@ private fun AnimatedBlobs() {
             modifier = Modifier
                 .offset(
                     x = (-40).dp + (15 * cos(blob3Offset + 1f)).dp,
-                    y = (0.75f * LocalDensity.current.density * 360 - 40).dp +
+                    y = (0.75f * LocalDensity.current.density * 360 - 20).dp +  // Changed from -40 to -20
                             (20 * sin(blob3Offset + 1f)).dp
                 )
                 .size(160.dp)
@@ -272,7 +262,7 @@ private fun AnimatedBlobs() {
                 .offset(
                     x = (0.5f * LocalDensity.current.density * 360 - 40).dp +
                             (30 * cos(blob4Offset + 2f)).dp,
-                    y = (LocalDensity.current.density * 360 - 40).dp +
+                    y = (LocalDensity.current.density * 360 - 20).dp +  // Changed from -40 to -20
                             (25 * sin(blob4Offset + 2f)).dp
                 )
                 .size(224.dp)
@@ -299,7 +289,7 @@ private fun FloatingPaletteIcon() {
     Box(
         modifier = Modifier
             .size(128.dp)
-            .offset(y = yOffset),
+            .offset(y = yOffset + 20.dp),  // Added +20.dp to move icon down
         contentAlignment = Alignment.Center
     ) {
         // Palette ellipse with gradient
@@ -424,9 +414,29 @@ private data class SwatchData(
 )
 
 // Preview for Android Studio
-@Preview(showBackground = true, showSystemUi = true)
+@Preview(showBackground = true, showSystemUi = true, widthDp = 360)
 @Composable
-fun HomeScreenPreview() {
+fun HomeScreenPreviewSmall() {
+    MaterialTheme {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            HomeScreen(props = HomeScreenProps(onGetStarted = {}))
+        }
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true, widthDp = 411)
+@Composable
+fun HomeScreenPreviewMedium() {
+    MaterialTheme {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            HomeScreen(props = HomeScreenProps(onGetStarted = {}))
+        }
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true, widthDp = 600)
+@Composable
+fun HomeScreenPreviewLarge() {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             HomeScreen(props = HomeScreenProps(onGetStarted = {}))
