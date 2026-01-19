@@ -7,6 +7,9 @@ import androidx.compose.runtime.remember
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import android.net.Uri
 import com.example.pickerio.screens.*
 import com.example.pickerio.ui.theme.PickerioTheme
 
@@ -44,9 +47,8 @@ class MainActivity : ComponentActivity() {
                         ImageSelector(
                             props = ImageSelectorProps(
                                 onImageSelect = { imageUri ->
-                                    // TODO: Handle image selection - navigate to color analysis
-                                    // For now, just go back or show a toast
-                                    // navController.navigate(Screen.Gallery.route)
+                                    val encodedUri = Uri.encode(imageUri.toString())
+                                    navController.navigate(Screen.ColorAnalysis.createRoute(encodedUri))
                                 },
                                 onBack = {
                                     // Go back to home screen
@@ -57,6 +59,30 @@ class MainActivity : ComponentActivity() {
                     }
 
                     // Add other screens as needed
+                    composable(
+                        route = Screen.ColorAnalysis.route,
+                        arguments = listOf(
+                            navArgument(NavArguments.IMAGE_URI) {
+                                type = NavType.StringType
+                            }
+                        )
+                    ) { backStackEntry ->
+                        val imageUriString = backStackEntry.arguments?.getString(NavArguments.IMAGE_URI)
+                        if (imageUriString != null) {
+                            val imageUri = Uri.parse(imageUriString)
+                            ColorPicker(
+                                props = ColorPickerProps(
+                                    imageUri = imageUri,
+                                    onColorPick = { colors ->
+                                        // TODO: Handle picked colors
+                                    },
+                                    onBack = {
+                                        navController.popBackStack()
+                                    }
+                                )
+                            )
+                        }
+                    }
                     /*
                     composable(Screen.Camera.route) {
                         // Camera screen implementation

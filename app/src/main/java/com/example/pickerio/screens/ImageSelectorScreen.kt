@@ -45,6 +45,11 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import kotlin.math.cos
 import kotlin.math.sin
+import androidx.core.content.FileProvider
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Objects
 
 data class ImageSelectorProps(
     val onImageSelect: (Uri) -> Unit,
@@ -82,6 +87,28 @@ fun ImageSelector(props: ImageSelectorProps) {
             uri?.let { props.onImageSelect(it) }
         }
     )
+
+    // Camera Support
+    var cameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture(),
+        onResult = { success ->
+            if (success && cameraUri != null) {
+                props.onImageSelect(cameraUri!!)
+            }
+        }
+    )
+
+    fun createImageFile(): File {
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(Date())
+        val storageDir = context.cacheDir
+         return File.createTempFile(
+            "JPEG_${timeStamp}_",
+            ".jpg",
+            storageDir
+        )
+    }
 
     Box(
         modifier = Modifier
@@ -139,11 +166,19 @@ fun ImageSelector(props: ImageSelectorProps) {
                     },
                     onCameraClick = {
                         if (cameraPermissionState.status.isGranted) {
-                            // Camera logic would go here
-                            // For now, just open gallery
-                            galleryLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
+                            try {
+                                val file = createImageFile()
+                                val uri = FileProvider.getUriForFile(
+                                    Objects.requireNonNull(context),
+                                    context.packageName + ".provider",
+                                    file
+                                )
+                                cameraUri = uri
+                                cameraLauncher.launch(uri)
+                            } catch (e: Exception) {
+                                // Handle error
+                                e.printStackTrace()
+                            }
                         } else {
                             cameraPermissionState.launchPermissionRequest()
                         }
