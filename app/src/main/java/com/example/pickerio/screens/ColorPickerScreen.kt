@@ -46,6 +46,14 @@ import kotlinx.coroutines.withContext
 import java.io.InputStream
 import kotlin.math.sqrt
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
+
+
 // Custom ColorInfo class since androidx.media3.common.ColorInfo is for video/audio
 data class CustomColorInfo(
     val hex: String,
@@ -244,6 +252,7 @@ fun ColorPicker(props: ColorPickerProps) {
         modifier = Modifier
             .fillMaxSize()
             .background(customBackgroundColor)
+            .systemBarsPadding() // Add system bars padding
     ) {
         // Header
         ColorPickerHeader(
@@ -330,7 +339,7 @@ private fun ColorPickerHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 28.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
