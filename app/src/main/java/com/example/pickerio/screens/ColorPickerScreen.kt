@@ -26,8 +26,11 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -41,18 +44,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.ColorInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import kotlin.math.sqrt
-
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.navigationBarsPadding
-
 
 // Custom ColorInfo class since androidx.media3.common.ColorInfo is for video/audio
 data class CustomColorInfo(
@@ -75,10 +71,22 @@ data class ColorPickerProps(
     val onBack: () -> Unit
 )
 
+// Data class for magnifying glass effect
+data class MagnifyingGlassState(
+    val isVisible: Boolean = false,
+    val position: Offset = Offset.Zero,
+    val zoomLevel: Float = 2.0f,
+    val capturedColor: CustomColorInfo? = null,
+    val isCapturing: Boolean = false
+)
+
 @Composable
 fun ColorPicker(props: ColorPickerProps) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
     var imageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var originalBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -89,6 +97,11 @@ fun ColorPicker(props: ColorPickerProps) {
 
     // Canvas size
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+
+    // Magnifying glass state
+    var magnifyingState by remember {
+        mutableStateOf(MagnifyingGlassState())
+    }
 
     // Load the image
     LaunchedEffect(props.imageUri) {
@@ -101,6 +114,7 @@ fun ColorPicker(props: ColorPickerProps) {
                 inputStream?.use { stream ->
                     val bitmap = BitmapFactory.decodeStream(stream)
                     if (bitmap != null) {
+                        originalBitmap = bitmap
                         imageBitmap = bitmap.asImageBitmap()
                     } else {
                         error = "Failed to decode image"
@@ -169,6 +183,23 @@ fun ColorPicker(props: ColorPickerProps) {
         return String.format("#%02X%02X%02X", r, g, b)
     }
 
+    // Get actual pixel color from bitmap
+    fun getPixelColorAt(x: Int, y: Int): AndroidColor? {
+        return try {
+            if (originalBitmap != null &&
+                x in 0 until originalBitmap!!.width &&
+                y in 0 until originalBitmap!!.height) {
+
+                val pixel = originalBitmap!!.getPixel(x, y)
+                AndroidColor.valueOf(pixel)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     // Handle color pick
     fun handleColorPick(position: Offset) {
         if (imageBitmap == null || canvasSize == IntSize.Zero) return
@@ -179,30 +210,56 @@ fun ColorPicker(props: ColorPickerProps) {
         val pixelX = (position.x * scaleX).toInt()
         val pixelY = (position.y * scaleY).toInt()
 
-        // For demo purposes, we'll create a mock color based on position
-        // In a real app, you'd need to access the actual pixel data
-        val hue = ((position.x + position.y) % 360).toInt()
-        val mockColor = AndroidColor.HSVToColor(floatArrayOf(hue.toFloat(), 0.8f, 0.9f))
-        val r = AndroidColor.red(mockColor)
-        val g = AndroidColor.green(mockColor)
-        val b = AndroidColor.blue(mockColor)
+        // Get actual pixel color
+        val pixelColor = getPixelColorAt(pixelX, pixelY)
+        if (pixelColor != null) {
+            val r = AndroidColor.red(pixelColor.toArgb())
+            val g = AndroidColor.green(pixelColor.toArgb())
+            val b = AndroidColor.blue(pixelColor.toArgb())
 
-        val colorInfo = CustomColorInfo(
-            hex = rgbToHex(r, g, b),
-            rgb = RGB(r, g, b),
-            name = getColorName(r, g, b),
-            x = pixelX,
-            y = pixelY
-        )
+            val colorInfo = CustomColorInfo(
+                hex = rgbToHex(r, g, b),
+                rgb = RGB(r, g, b),
+                name = getColorName(r, g, b),
+                x = pixelX,
+                y = pixelY
+            )
 
-        pickedColors = pickedColors + colorInfo
+            // Start magnifying glass capture animation
+            magnifyingState = magnifyingState.copy(
+                isVisible = true,
+                position = position,
+                capturedColor = colorInfo,
+                isCapturing = true
+            )
+
+            // Show magnifying glass for a moment, then add color
+            coroutineScope.launch {
+                delay(800) // Show magnifying glass for 0.8 seconds
+
+                // Add the color to picked colors
+                pickedColors = pickedColors + colorInfo
+
+                // Hide magnifying glass with fade out
+                magnifyingState = magnifyingState.copy(
+                    isCapturing = false
+                )
+
+                delay(300) // Fade out duration
+                magnifyingState = magnifyingState.copy(
+                    isVisible = false,
+                    capturedColor = null
+                )
+            }
+        }
     }
 
-    // Handle color preview
+    // Handle color preview (shows magnifying glass)
     fun handleColorPreview(position: Offset) {
         if (imageBitmap == null || canvasSize == IntSize.Zero) {
             cursorPosition = null
             currentColor = null
+            magnifyingState = magnifyingState.copy(isVisible = false)
             return
         }
 
@@ -214,20 +271,39 @@ fun ColorPicker(props: ColorPickerProps) {
         val pixelX = (position.x * scaleX).toInt()
         val pixelY = (position.y * scaleY).toInt()
 
-        // For demo purposes, create a mock color
-        val hue = ((position.x + position.y) % 360).toInt()
-        val mockColor = AndroidColor.HSVToColor(floatArrayOf(hue.toFloat(), 0.8f, 0.9f))
-        val r = AndroidColor.red(mockColor)
-        val g = AndroidColor.green(mockColor)
-        val b = AndroidColor.blue(mockColor)
+        // Get actual pixel color
+        val pixelColor = getPixelColorAt(pixelX, pixelY)
+        if (pixelColor != null) {
+            val r = AndroidColor.red(pixelColor.toArgb())
+            val g = AndroidColor.green(pixelColor.toArgb())
+            val b = AndroidColor.blue(pixelColor.toArgb())
 
-        currentColor = CustomColorInfo(
-            hex = rgbToHex(r, g, b),
-            rgb = RGB(r, g, b),
-            name = getColorName(r, g, b),
-            x = pixelX,
-            y = pixelY
-        )
+            currentColor = CustomColorInfo(
+                hex = rgbToHex(r, g, b),
+                rgb = RGB(r, g, b),
+                name = getColorName(r, g, b),
+                x = pixelX,
+                y = pixelY
+            )
+
+            // Show magnifying glass for preview
+            magnifyingState = magnifyingState.copy(
+                isVisible = true,
+                position = position,
+                capturedColor = null,
+                isCapturing = false
+            )
+        } else {
+            currentColor = null
+            magnifyingState = magnifyingState.copy(isVisible = false)
+        }
+    }
+
+    // Handle mouse/touch release (hide magnifying glass)
+    fun handleRelease() {
+        if (!magnifyingState.isCapturing) {
+            magnifyingState = magnifyingState.copy(isVisible = false)
+        }
     }
 
     // Remove a color
@@ -248,11 +324,22 @@ fun ColorPicker(props: ColorPickerProps) {
     val mediumTextColor = Color(0xFF5C5346)
     val warmPrimaryColor = Color(0xFFD4A574)
 
+    // Animation for magnifying glass capture
+    val captureTransition = rememberInfiniteTransition()
+    val capturePulse by captureTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(customBackgroundColor)
-            .systemBarsPadding() // Add system bars padding
+            .systemBarsPadding()
     ) {
         // Header
         ColorPickerHeader(
@@ -292,15 +379,18 @@ fun ColorPicker(props: ColorPickerProps) {
                     // Error message
                     ErrorMessage(error = error!!, mediumTextColor = mediumTextColor)
                 } else if (imageBitmap != null) {
-                    // Image canvas
-                    ImageCanvas(
+                    // Image canvas with magnifying glass
+                    ImageCanvasWithMagnifier(
                         imageBitmap = imageBitmap!!,
                         onSizeChanged = { size -> canvasSize = size },
                         onColorPreview = ::handleColorPreview,
                         onColorPick = ::handleColorPick,
+                        onRelease = ::handleRelease,
                         cursorPosition = cursorPosition,
                         currentColor = currentColor,
                         pickedColors = pickedColors,
+                        magnifyingState = magnifyingState,
+                        capturePulse = if (magnifyingState.isCapturing) capturePulse else 1f,
                         onRemoveColor = ::removeColor,
                         darkTextColor = darkTextColor,
                         mediumTextColor = mediumTextColor
@@ -339,7 +429,7 @@ private fun ColorPickerHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 28.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -379,7 +469,7 @@ private fun ColorPickerHeader(
                     )
 
                     Text(
-                        text = "Touch anywhere to capture colors",
+                        text = "Touch and hold to magnify, tap to capture",
                         style = MaterialTheme.typography.bodySmall,
                         color = mediumTextColor
                     )
@@ -468,14 +558,17 @@ private fun ErrorMessage(error: String, mediumTextColor: Color) {
 }
 
 @Composable
-private fun ImageCanvas(
+private fun ImageCanvasWithMagnifier(
     imageBitmap: ImageBitmap,
     onSizeChanged: (IntSize) -> Unit,
     onColorPreview: (Offset) -> Unit,
     onColorPick: (Offset) -> Unit,
+    onRelease: () -> Unit,
     cursorPosition: Offset?,
     currentColor: CustomColorInfo?,
     pickedColors: List<CustomColorInfo>,
+    magnifyingState: MagnifyingGlassState,
+    capturePulse: Float,
     onRemoveColor: (Int) -> Unit,
     darkTextColor: Color,
     mediumTextColor: Color
@@ -487,6 +580,8 @@ private fun ImageCanvas(
                 detectTapGestures(
                     onPress = { offset ->
                         onColorPreview(offset)
+                        tryAwaitRelease()
+                        onRelease()
                     },
                     onTap = { offset ->
                         onColorPick(offset)
@@ -509,14 +604,20 @@ private fun ImageCanvas(
             onSizeChanged(IntSize(displayWidth.toInt(), displayHeight.toInt()))
         }
 
-        // Image
+        // Image with optional dimming when magnifying glass is visible
         Image(
             bitmap = imageBitmap,
             contentDescription = "Selected image",
             modifier = Modifier
                 .width(displayWidth.dp)
                 .height(displayHeight.dp)
-                .clip(RoundedCornerShape(16.dp)),
+                .clip(RoundedCornerShape(16.dp))
+                .graphicsLayer {
+                    if (magnifyingState.isVisible) {
+                        // Dim the background image when magnifying glass is shown
+                        alpha = 0.7f
+                    }
+                },
             contentScale = ContentScale.FillBounds
         )
 
@@ -536,8 +637,33 @@ private fun ImageCanvas(
             )
         }
 
-        // Color preview popup
-        if (cursorPosition != null && currentColor != null) {
+        // Magnifying glass overlay - only show if cursor position is within image bounds
+        if (magnifyingState.isVisible && cursorPosition != null) {
+            // Check if cursor is within image bounds
+            val isWithinImage = cursorPosition.x in 0f..displayWidth &&
+                    cursorPosition.y in 0f..displayHeight
+
+            if (isWithinImage) {
+                MagnifyingGlassOverlay(
+                    position = cursorPosition,
+                    zoomLevel = magnifyingState.zoomLevel,
+                    imageBitmap = imageBitmap,
+                    imageDisplaySize = Size(displayWidth, displayHeight),
+                    originalImageSize = Size(imageWidth, imageHeight),
+                    currentColor = currentColor,
+                    isCapturing = magnifyingState.isCapturing,
+                    capturePulse = capturePulse,
+                    capturedColor = magnifyingState.capturedColor
+                )
+            }
+        }
+
+        // Color preview popup (only show if not capturing and cursor is within image)
+        if (cursorPosition != null && currentColor != null &&
+            !magnifyingState.isCapturing &&
+            cursorPosition.x in 0f..displayWidth &&
+            cursorPosition.y in 0f..displayHeight) {
+
             ColorPreviewPopup(
                 position = cursorPosition,
                 colorInfo = currentColor,
@@ -547,11 +673,13 @@ private fun ImageCanvas(
         }
 
         // Instruction hint
-        if (pickedColors.isEmpty()) {
+        if (pickedColors.isEmpty() && !magnifyingState.isVisible) {
             InstructionHint(mediumTextColor = mediumTextColor)
         }
     }
 }
+
+
 
 @Composable
 private fun ColorMarker(
@@ -598,6 +726,238 @@ private fun ColorMarker(
 }
 
 @Composable
+private fun MagnifyingGlassOverlay(
+    position: Offset,
+    zoomLevel: Float,
+    imageBitmap: ImageBitmap,
+    imageDisplaySize: Size,
+    originalImageSize: Size,
+    currentColor: CustomColorInfo?,
+    isCapturing: Boolean,
+    capturePulse: Float,
+    capturedColor: CustomColorInfo?
+) {
+    val magnifierSize = 120.dp
+    val magnifierRadius = magnifierSize / 2
+
+    // Get local density to convert dp to pixels
+    val density = LocalDensity.current
+
+    // Calculate the position for magnifying glass
+    // We need to ensure it stays within the screen bounds
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        val containerWidth = constraints.maxWidth.toFloat()
+        val containerHeight = constraints.maxHeight.toFloat()
+
+        // Convert dp values to pixels
+        val magnifierSizePx = with(density) { magnifierSize.toPx() }
+        val magnifierRadiusPx = with(density) { magnifierRadius.toPx() }
+        val spaceBufferPx = with(density) { 80.dp.toPx() }
+        val paddingPx = with(density) { 40.dp.toPx() }
+
+        // Calculate where to position the magnifying glass
+        // Try to position it above the touch point, but adjust if needed
+        val offsetX = position.x
+        val offsetY = position.y
+
+        // Check if we have enough space above the touch point
+        val hasSpaceAbove = offsetY > magnifierSizePx + spaceBufferPx
+
+        // Calculate final position
+        val finalOffsetY = if (hasSpaceAbove) {
+            // Position above the touch point
+            offsetY - magnifierSizePx - paddingPx
+        } else {
+            // Position below the touch point (with some padding)
+            offsetY + paddingPx
+        }
+
+        // Ensure the magnifying glass stays within horizontal bounds
+        val finalOffsetX = offsetX.coerceIn(
+            magnifierRadiusPx,
+            containerWidth - magnifierRadiusPx
+        )
+
+        // Ensure the magnifying glass stays within vertical bounds
+        val finalY = finalOffsetY.coerceIn(
+            magnifierRadiusPx,
+            containerHeight - magnifierRadiusPx
+        )
+
+        Box(
+            modifier = Modifier
+                .offset(
+                    x = (finalOffsetX - magnifierRadiusPx).dp,
+                    y = (finalY - magnifierRadiusPx).dp
+                )
+                .size(magnifierSize)
+                .scale(if (isCapturing) capturePulse else 1f)
+                .shadow(
+                    elevation = 16.dp,
+                    shape = CircleShape,
+                    spotColor = Color.Black.copy(alpha = 0.3f)
+                )
+        ) {
+            // Magnifying glass lens
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                // Convert dp to px for drawing
+                val borderWidthPx = with(density) { 2.dp.toPx() }
+                val strokeWidthPx = with(density) { 4.dp.toPx() }
+                val crosshairWidthPx = with(density) { 1.dp.toPx() }
+
+                // Draw a simple circular background with crosshair
+                // For a simpler implementation, we can show a color preview
+
+                // Draw the selected color as background
+                currentColor?.let { color ->
+                    val composeColor = parseColorHex(color.hex)
+                    drawCircle(
+                        color = composeColor,
+                        radius = size.width / 2 - borderWidthPx
+                    )
+                } ?: run {
+                    // Fallback: draw a gradient if no color
+                    val gradient = Brush.radialGradient(
+                        colors = listOf(Color.LightGray, Color.DarkGray),
+                        center = Offset(size.width / 2, size.height / 2),
+                        radius = size.width / 2
+                    )
+                    drawCircle(
+                        brush = gradient,
+                        radius = size.width / 2 - borderWidthPx
+                    )
+                }
+
+                // Draw lens border
+                drawCircle(
+                    color = Color.White,
+                    radius = size.width / 2,
+                    style = Stroke(width = strokeWidthPx)
+                )
+
+                // Draw crosshair
+                drawLine(
+                    color = Color.White.copy(alpha = 0.8f),
+                    start = Offset(size.width / 2, 0f),
+                    end = Offset(size.width / 2, size.height),
+                    strokeWidth = crosshairWidthPx
+                )
+                drawLine(
+                    color = Color.White.copy(alpha = 0.8f),
+                    start = Offset(0f, size.height / 2),
+                    end = Offset(size.width, size.height / 2),
+                    strokeWidth = crosshairWidthPx
+                )
+
+                // Draw center dot
+                drawCircle(
+                    color = Color.Black,
+                    radius = 3f,
+                    center = Offset(size.width / 2, size.height / 2)
+                )
+                drawCircle(
+                    color = Color.White,
+                    radius = 2f,
+                    center = Offset(size.width / 2, size.height / 2)
+                )
+            }
+
+            // Color info display - position it relative to the magnifying glass
+            val tooltipOffset = if (hasSpaceAbove) {
+                // If magnifying glass is above touch point, show tooltip below magnifying glass
+                30.dp
+            } else {
+                // If magnifying glass is below touch point, show tooltip above magnifying glass
+                (-30).dp
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .offset(y = tooltipOffset)
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .width(140.dp)
+                        .height(if (isCapturing) 70.dp else 56.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (isCapturing) Color(0xFF4CAF50) else Color.Black.copy(alpha = 0.8f),
+                    shadowElevation = 8.dp
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        if (isCapturing) {
+                            // Capturing state
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = "Capturing",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Captured!",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            capturedColor?.let { color ->
+                                Text(
+                                    text = color.name,
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
+                        } else {
+                            // Preview state
+                            currentColor?.let { color ->
+                                Text(
+                                    text = color.hex,
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                )
+                                Text(
+                                    text = color.name,
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            } ?: run {
+                                Text(
+                                    text = "Scanning...",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ColorPreviewPopup(
     position: Offset,
     colorInfo: CustomColorInfo,
@@ -605,56 +965,93 @@ private fun ColorPreviewPopup(
     mediumTextColor: Color
 ) {
     val color = parseColorHex(colorInfo.hex)
+    val density = LocalDensity.current
 
-    Box(
-        modifier = Modifier
-            .offset(x = position.x.dp + 20.dp, y = position.y.dp - 70.dp)
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize()
     ) {
-        Surface(
+        val containerWidth = constraints.maxWidth.toFloat()
+        val containerHeight = constraints.maxHeight.toFloat()
+
+        // Calculate position for popup - try to show it above the touch point
+        val popupWidth = 180.dp
+        val popupHeight = 56.dp
+
+        // Convert dp values to pixels
+        val popupWidthPx = with(density) { popupWidth.toPx() }
+        val popupHeightPx = with(density) { popupHeight.toPx() }
+        val rightPaddingPx = with(density) { 20.dp.toPx() }
+        val leftPaddingPx = with(density) { 10.dp.toPx() }
+        val verticalPaddingPx = with(density) { 20.dp.toPx() }
+
+        // Calculate X position
+        val offsetX = if (position.x + popupWidthPx + rightPaddingPx > containerWidth) {
+            // Not enough space on the right, show on left
+            position.x - popupWidthPx - leftPaddingPx
+        } else {
+            // Enough space on the right
+            position.x + rightPaddingPx
+        }.coerceIn(0f, containerWidth - popupWidthPx)
+
+        // Calculate Y position
+        val offsetY = if (position.y - popupHeightPx - verticalPaddingPx < 0) {
+            // Not enough space above, show below
+            position.y + verticalPaddingPx
+        } else {
+            // Enough space above
+            position.y - popupHeightPx - verticalPaddingPx
+        }.coerceIn(0f, containerHeight - popupHeightPx)
+
+        Box(
             modifier = Modifier
-                .width(180.dp)
-                .height(56.dp),
-            shape = RoundedCornerShape(16.dp),
-            color = Color.White,
-            shadowElevation = 8.dp,
-            tonalElevation = 4.dp,
-            border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.3f))
+                .offset(x = offsetX.dp, y = offsetY.dp)
         ) {
-            Row(
+            Surface(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Start
+                    .width(popupWidth)
+                    .height(popupHeight),
+                shape = RoundedCornerShape(16.dp),
+                color = Color.White,
+                shadowElevation = 8.dp,
+                tonalElevation = 4.dp,
+                border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.3f))
             ) {
-                // Color preview
-                Box(
+                Row(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(color)
-                )
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // Color info
-                Column {
-                    Text(
-                        text = colorInfo.hex,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                        ),
-                        color = darkTextColor,
-                        fontSize = 14.sp
+                        .fillMaxSize()
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Start
+                ) {
+                    // Color preview
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(color)
                     )
 
-                    Text(
-                        text = colorInfo.name,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = mediumTextColor,
-                        fontSize = 11.sp
-                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    // Color info
+                    Column {
+                        Text(
+                            text = colorInfo.hex,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            ),
+                            color = darkTextColor,
+                            fontSize = 14.sp
+                        )
+
+                        Text(
+                            text = colorInfo.name,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = mediumTextColor,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
             }
         }
@@ -696,7 +1093,7 @@ private fun InstructionHint(mediumTextColor: Color) {
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Text(
-                    text = "Touch to discover colors",
+                    text = "Touch and hold to magnify",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = FontWeight.Medium
                     ),
@@ -798,7 +1195,6 @@ private fun ColorSwatch(
     }
 }
 
-
 // Helper function to parse hex color string to Compose Color
 fun parseColorHex(hex: String): Color {
     // Remove # if present
@@ -818,45 +1214,6 @@ fun parseColorHex(hex: String): Color {
     // Convert to Long and create Color
     val colorLong = fullHex.toLong(16)
     return Color(colorLong)
-}
-
-// Alternative simplified version:
-fun parseColorHexSimple(hex: String): Color {
-    return try {
-        // Remove # if present
-        val cleanHex = if (hex.startsWith("#")) hex.substring(1) else hex
-
-        // Parse the hex string as Long
-        val colorValue = when (cleanHex.length) {
-            6 -> (0xFF000000 or cleanHex.toLong(16)) // Add alpha
-            8 -> cleanHex.toLong(16)
-            else -> 0xFFFFFFFF.toLong() // Default white
-        }
-
-        Color(colorValue)
-    } catch (e: Exception) {
-        Color.White // Default fallback
-    }
-}
-
-// Or use Android's Color.parseColor and convert:
-fun parseColorHexViaAndroid(hex: String): Color {
-    return try {
-        val androidColor = android.graphics.Color.parseColor(hex)
-        Color(androidColor)
-    } catch (e: Exception) {
-        Color.White
-    }
-}
-
-// Alternative: Convert Android Color to Compose Color
-fun androidColorToComposeColor(androidColor: Int): Color {
-    return Color(
-        red = AndroidColor.red(androidColor) / 255f,
-        green = AndroidColor.green(androidColor) / 255f,
-        blue = AndroidColor.blue(androidColor) / 255f,
-        alpha = AndroidColor.alpha(androidColor) / 255f
-    )
 }
 
 data class NamedColor(
