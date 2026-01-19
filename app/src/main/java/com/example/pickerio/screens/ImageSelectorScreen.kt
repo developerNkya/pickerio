@@ -14,17 +14,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Photo
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -46,6 +50,19 @@ data class ImageSelectorProps(
     val onImageSelect: (Uri) -> Unit,
     val onBack: () -> Unit
 )
+
+// Updated color palette with blackish text colors
+val CustomBackgroundColor = Color(0xFFFEF7F2) // Base background
+val WarmGrayColor = Color(0xFFE8DED4) // Bold gray - matches FEF7F2 warmth
+val WarmPrimaryColor = Color(0xFFD4A574) // Warm primary (brownish)
+val WarmSecondaryColor = Color(0xFFA38B6D) // Warm secondary
+val DottedBorderColor = Color(0xFFD9CABE) // Dotted border - matches FEF7F2
+val IconBackgroundColor = Color(0xFFEDE4D9) // Icon background - bold version of FEF7F2
+
+// Blackish text colors with warm undertones
+val DarkTextColor = Color(0xFF3A3329) // Dark brownish-black for main text
+val MediumTextColor = Color(0xFF5C5346) // Medium brownish for secondary text
+val LightTextColor = Color(0xFF7D7568) // Light brownish for subtle text
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -69,7 +86,8 @@ fun ImageSelector(props: ImageSelectorProps) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(CustomBackgroundColor)
+            .padding(top = 32.dp)
     ) {
         // Animated background blobs
         AnimatedBackgroundBlobs()
@@ -90,6 +108,8 @@ fun ImageSelector(props: ImageSelectorProps) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+                Spacer(modifier = Modifier.height(8.dp))
+
                 // Drop zone for images
                 ImageDropZone(
                     isDragging = isDragging,
@@ -167,7 +187,7 @@ private fun AnimatedBackgroundBlobs() {
                 )
                 .size(128.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))
+                .background(WarmPrimaryColor.copy(alpha = 0.05f))
         )
 
         // Blob 2 - Bottom left
@@ -179,7 +199,7 @@ private fun AnimatedBackgroundBlobs() {
                 )
                 .size(96.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.05f))
+                .background(WarmSecondaryColor.copy(alpha = 0.05f))
         )
     }
 }
@@ -189,7 +209,7 @@ private fun HeaderSection(onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 20.dp),
+            .padding(horizontal = 24.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Start
     ) {
@@ -199,12 +219,12 @@ private fun HeaderSection(onBack: () -> Unit) {
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f))
+                .background(WarmGrayColor)
         ) {
             Icon(
                 imageVector = Icons.Default.ArrowBack,
                 contentDescription = "Back",
-                tint = MaterialTheme.colorScheme.onSecondary,
+                tint = MediumTextColor,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -220,13 +240,13 @@ private fun HeaderSection(onBack: () -> Unit) {
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = FontFamily.Serif
                 ),
-                color = MaterialTheme.colorScheme.onBackground
+                color = DarkTextColor // Blackish main title
             )
 
             Text(
                 text = "Select an image to explore its colors",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                color = MediumTextColor // Blackish secondary text
             )
         }
     }
@@ -240,15 +260,15 @@ private fun ImageDropZone(
     onDragEnd: () -> Unit
 ) {
     val borderColor = if (isDragging) {
-        MaterialTheme.colorScheme.primary
+        WarmPrimaryColor
     } else {
-        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+        DottedBorderColor
     }
 
     val backgroundColor = if (isDragging) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+        WarmPrimaryColor.copy(alpha = 0.1f)
     } else {
-        MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
+        WarmGrayColor.copy(alpha = 0.3f)
     }
 
     var isHovered by remember { mutableStateOf(false) }
@@ -258,24 +278,27 @@ private fun ImageDropZone(
             .fillMaxWidth()
             .aspectRatio(4f / 3f)
             .clip(RoundedCornerShape(24.dp))
-            .border(
-                width = 3.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(24.dp)
-            )
             .background(
                 color = backgroundColor,
                 shape = RoundedCornerShape(24.dp)
             )
             .clickable { onClick() }
             .scale(if (isDragging) 1.02f else 1f)
+            .drawBehind {
+                // Draw dotted border with rounded corners
+                drawDottedBorder(
+                    color = borderColor,
+                    strokeWidth = 3.dp.toPx(),
+                    cornerRadius = 24.dp.toPx()
+                )
+            }
             .pointerInput(Unit) {
                 // Handle drag states
             },
         contentAlignment = Alignment.Center
     ) {
-        // Decorative corners
-        DecorativeCorners()
+        // Decorative corners with slight radius
+        RoundedCorners()
 
         // Shimmer effect on hover
         if (isHovered) {
@@ -286,7 +309,7 @@ private fun ImageDropZone(
                         brush = Brush.linearGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                WarmPrimaryColor.copy(alpha = 0.1f),
                                 Color.Transparent
                             ),
                             start = Offset(-100f, -100f),
@@ -306,18 +329,19 @@ private fun ImageDropZone(
             Box(
                 contentAlignment = Alignment.Center
             ) {
+                // Icon with bold version of FEF7F2 background
                 Box(
                     modifier = Modifier
                         .size(80.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.secondary)
+                        .background(IconBackgroundColor)
                         .padding(20.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Create,
                         contentDescription = "Image icon",
-                        tint = MaterialTheme.colorScheme.onSecondary.copy(alpha = 0.6f),
+                        tint = MediumTextColor, // Blackish icon color
                         modifier = Modifier.size(32.dp)
                     )
                 }
@@ -326,7 +350,7 @@ private fun ImageDropZone(
                 Icon(
                     imageVector = Icons.Default.Star,
                     contentDescription = "Sparkle",
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = WarmPrimaryColor,
                     modifier = Modifier
                         .size(24.dp)
                         .offset(x = 30.dp, y = (-30).dp)
@@ -347,14 +371,14 @@ private fun ImageDropZone(
                         fontWeight = FontWeight.Medium,
                         fontFamily = FontFamily.Serif
                     ),
-                    color = MaterialTheme.colorScheme.onBackground,
+                    color = DarkTextColor, // Blackish main text
                     textAlign = TextAlign.Center
                 )
 
                 Text(
                     text = "or tap to browse your gallery",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                    color = MediumTextColor, // Blackish secondary text
                     textAlign = TextAlign.Center
                 )
             }
@@ -362,70 +386,130 @@ private fun ImageDropZone(
     }
 }
 
+private fun DrawScope.drawDottedBorder(
+    color: Color,
+    strokeWidth: Float,
+    cornerRadius: Float
+) {
+    val dashPathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+
+    drawRoundRect(
+        color = color,
+        style = Stroke(
+            width = strokeWidth,
+            pathEffect = dashPathEffect
+        ),
+        cornerRadius = CornerRadius(cornerRadius, cornerRadius)
+    )
+}
+
 @Composable
-private fun DecorativeCorners(color: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)) {
+private fun RoundedCorners(color: Color = WarmPrimaryColor.copy(alpha = 0.3f)) {
     Canvas(
         modifier = Modifier
-            .fillMaxSize()  // Changed from matchParentSize() to fillMaxSize()
+            .fillMaxSize()
             .padding(16.dp)
     ) {
         val cornerSize = 32.dp.toPx()
         val borderWidth = 2.dp.toPx()
+        val cornerRadius = 8.dp.toPx()
 
-        // Top-left corner
+        // Draw rounded corners instead of sharp corners
+
+        // Top-left rounded corner
         drawLine(
             color = color,
-            start = Offset(0f, 0f),
+            start = Offset(cornerRadius, 0f),
             end = Offset(cornerSize, 0f),
             strokeWidth = borderWidth
         )
         drawLine(
             color = color,
-            start = Offset(0f, 0f),
+            start = Offset(0f, cornerRadius),
             end = Offset(0f, cornerSize),
             strokeWidth = borderWidth
         )
+        // Draw rounded corner arc
+        drawArc(
+            color = color,
+            startAngle = 180f,
+            sweepAngle = 90f,
+            useCenter = false,
+            topLeft = Offset(0f, 0f),
+            size = Size(cornerRadius * 2, cornerRadius * 2),
+            style = Stroke(width = borderWidth)
+        )
 
-        // Top-right corner
+        // Top-right rounded corner
         drawLine(
             color = color,
             start = Offset(size.width - cornerSize, 0f),
-            end = Offset(size.width, 0f),
+            end = Offset(size.width - cornerRadius, 0f),
             strokeWidth = borderWidth
         )
         drawLine(
             color = color,
-            start = Offset(size.width, 0f),
+            start = Offset(size.width, cornerRadius),
             end = Offset(size.width, cornerSize),
             strokeWidth = borderWidth
         )
+        // Draw rounded corner arc
+        drawArc(
+            color = color,
+            startAngle = 270f,
+            sweepAngle = 90f,
+            useCenter = false,
+            topLeft = Offset(size.width - cornerRadius * 2, 0f),
+            size = Size(cornerRadius * 2, cornerRadius * 2),
+            style = Stroke(width = borderWidth)
+        )
 
-        // Bottom-left corner
+        // Bottom-left rounded corner
         drawLine(
             color = color,
             start = Offset(0f, size.height - cornerSize),
-            end = Offset(0f, size.height),
+            end = Offset(0f, size.height - cornerRadius),
             strokeWidth = borderWidth
         )
         drawLine(
             color = color,
-            start = Offset(0f, size.height),
+            start = Offset(cornerRadius, size.height),
             end = Offset(cornerSize, size.height),
             strokeWidth = borderWidth
         )
+        // Draw rounded corner arc
+        drawArc(
+            color = color,
+            startAngle = 90f,
+            sweepAngle = 90f,
+            useCenter = false,
+            topLeft = Offset(0f, size.height - cornerRadius * 2),
+            size = Size(cornerRadius * 2, cornerRadius * 2),
+            style = Stroke(width = borderWidth)
+        )
 
-        // Bottom-right corner
+        // Bottom-right rounded corner
         drawLine(
             color = color,
             start = Offset(size.width - cornerSize, size.height),
-            end = Offset(size.width, size.height),
+            end = Offset(size.width - cornerRadius, size.height),
             strokeWidth = borderWidth
         )
         drawLine(
             color = color,
             start = Offset(size.width, size.height - cornerSize),
-            end = Offset(size.width, size.height),
+            end = Offset(size.width, size.height - cornerRadius),
             strokeWidth = borderWidth
+        )
+        // Draw rounded corner arc
+        drawArc(
+            color = color,
+            startAngle = 0f,
+            sweepAngle = 90f,
+            useCenter = false,
+            topLeft = Offset(size.width - cornerRadius * 2, size.height - cornerRadius * 2),
+            size = Size(cornerRadius * 2, cornerRadius * 2),
+            style = Stroke(width = borderWidth)
         )
     }
 }
@@ -445,7 +529,7 @@ private fun OrDivider() {
                     brush = Brush.horizontalGradient(
                         colors = listOf(
                             Color.Transparent,
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                            DottedBorderColor,
                             Color.Transparent
                         )
                     )
@@ -458,7 +542,7 @@ private fun OrDivider() {
                 fontStyle = FontStyle.Italic,
                 fontFamily = FontFamily.Serif
             ),
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+            color = LightTextColor, // Blackish but lighter
             modifier = Modifier.padding(horizontal = 16.dp)
         )
 
@@ -470,7 +554,7 @@ private fun OrDivider() {
                     brush = Brush.horizontalGradient(
                         colors = listOf(
                             Color.Transparent,
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                            DottedBorderColor,
                             Color.Transparent
                         )
                     )
@@ -491,7 +575,7 @@ private fun ActionButtons(
     ) {
         // Gallery Button
         ActionButton(
-            icon = Icons.Default.Photo,
+            icon = Icons.Default.Image,
             title = "Gallery",
             subtitle = "Choose existing",
             onClick = onGalleryClick,
@@ -518,21 +602,21 @@ private fun ActionButton(
     isPrimaryButton: Boolean
 ) {
     val borderColor = if (isPrimaryButton) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+        WarmPrimaryColor.copy(alpha = 0.3f)
     } else {
-        MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
+        WarmGrayColor.copy(alpha = 0.3f)
     }
 
     val hoverBorderColor = if (isPrimaryButton) {
-        MaterialTheme.colorScheme.primary
+        WarmPrimaryColor
     } else {
-        MaterialTheme.colorScheme.secondary
+        WarmSecondaryColor
     }
 
     val hoverBackgroundColor = if (isPrimaryButton) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+        WarmPrimaryColor.copy(alpha = 0.05f)
     } else {
-        MaterialTheme.colorScheme.secondary.copy(alpha = 0.05f)
+        WarmGrayColor.copy(alpha = 0.05f)
     }
 
     var isHovered by remember { mutableStateOf(false) }
@@ -578,12 +662,12 @@ private fun ActionButton(
                     .background(
                         color = if (isHovered) {
                             if (isPrimaryButton) {
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                WarmPrimaryColor.copy(alpha = 0.1f)
                             } else {
-                                MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)
+                                WarmGrayColor.copy(alpha = 0.1f)
                             }
                         } else {
-                            MaterialTheme.colorScheme.secondary
+                            IconBackgroundColor
                         }
                     )
                     .padding(10.dp),
@@ -592,7 +676,7 @@ private fun ActionButton(
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
-                    tint = MaterialTheme.colorScheme.onSecondary,
+                    tint = MediumTextColor, // Blackish icon color
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -606,13 +690,13 @@ private fun ActionButton(
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = FontWeight.Medium
                     ),
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = DarkTextColor // Blackish main text
                 )
 
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                    color = MediumTextColor // Blackish secondary text
                 )
             }
         }
