@@ -673,34 +673,6 @@ private fun ImageCanvasWithMagnifier(
             )
         }
 
-        // Magnifying glass overlay - simplified positioning
-        if (magnifyingState.isVisible && cursorPosition != null) {
-            // Check if cursor is within image bounds
-            val isWithinImage = cursorPosition.x in 0f..displayWidth &&
-                    cursorPosition.y in 0f..displayHeight
-
-            if (isWithinImage) {
-                // Simple positioning - always show above the cursor
-                // If it goes slightly off screen, it will be clipped but still visible
-                val magnifierPosition = Offset(
-                    x = cursorPosition.x.coerceIn(50f, displayWidth - 50f),
-                    y = (cursorPosition.y - 80f).coerceIn(50f, displayHeight - 50f)
-                )
-
-                MagnifyingGlassOverlay(
-                    position = magnifierPosition,
-                    zoomLevel = magnifyingState.zoomLevel,
-                    imageBitmap = imageBitmap,
-                    imageDisplaySize = Size(displayWidth, displayHeight),
-                    originalImageSize = Size(imageWidth, imageHeight),
-                    currentColor = currentColor,
-                    isCapturing = magnifyingState.isCapturing,
-                    capturePulse = capturePulse,
-                    capturedColor = magnifyingState.capturedColor,
-                    containerSize = Size(containerWidth, containerHeight)
-                )
-            }
-        }
 
         // Instruction hint (centered in the canvas)
         if (pickedColors.isEmpty() && !magnifyingState.isVisible) {
@@ -841,45 +813,6 @@ private fun MagnifyingGlassOverlay(
             )
         }
 
-        // Only show "Captured!" text during capture (no hex code)
-        if (isCapturing) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .offset(y = 30.dp)
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .width(120.dp)
-                        .height(48.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color(0xFF4CAF50),
-                    shadowElevation = 8.dp
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = "Capturing",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Captured!",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
     }
 }
 
