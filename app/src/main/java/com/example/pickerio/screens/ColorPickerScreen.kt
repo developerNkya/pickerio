@@ -1044,7 +1044,7 @@ fun ColorPickerPreview() {
         ColorPicker(
             props = ColorPickerProps(
                 imageUri = Uri.EMPTY,
-                onColorPick = { /* Handle color pick */ },
+                onColorPick = {/* Handle color pick */ },
                 onBack = { /* Handle back navigation */ }
             )
         )
