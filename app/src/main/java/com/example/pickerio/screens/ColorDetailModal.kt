@@ -8,8 +8,17 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -23,21 +32,35 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.zIndex
 import androidx.constraintlayout.helper.widget.Grid
+import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+// Add this import at the top
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+
 
 data class ColorDetailModalProps(
     val color: CustomColorInfo,
@@ -528,6 +551,16 @@ private fun ColorShadesCard(
     copiedShade: String?,
     onShadeCopied: (String) -> Unit
 ) {
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+
+    val canScrollLeft by remember(scrollState.value) {
+        derivedStateOf { scrollState.value > 0 }
+    }
+    val canScrollRight by remember(scrollState.value, scrollState.maxValue) {
+        derivedStateOf { scrollState.value < scrollState.maxValue }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -566,35 +599,77 @@ private fun ColorShadesCard(
                 )
             )
 
-            // Shades grid - Manual implementation to avoid nested scroll issues
-            Column(
+            Box(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                contentAlignment = Alignment.Center
             ) {
-                // We have 9 items. Fixed(9) implies 9 columns?
-                // The original code used GridCells.Fixed(9).
-                // Let's render them in a single Row if 9 fits, or just use FlowRow logic manually since we know the count.
-                // Assuming we want them in one row or wrapped?
-                // Actually 9 items in one row on mobile might be tight.
-                // Let's use FlowRow if we can, or just a simple Row with wrapping logic if needed.
-                // Given "GridCells.Fixed(9)" it tried to put all 9 in one row? That seems small.
-                // Let's assume we want them to wrap comfortably.
-                // Or if the design intent was a single row of small squares:
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                // Left arrow with AnimatedVisibility
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = canScrollLeft,
+                    enter = fadeIn() + slideInHorizontally { -20 },
+                    exit = fadeOut() + slideOutHorizontally { -20 },
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .zIndex(1f)
                 ) {
-                   shades.forEach { shade ->
-                       // Calculate width based on weight or fixed size
-                       Box(modifier = Modifier.weight(1f).aspectRatio(1f).padding(2.dp)) {
-                           ShadeItem(
-                               shade = shade,
-                               isCopied = copiedShade == shade.hex,
-                               onClick = { onShadeCopied(shade.hex) }
-                           )
-                       }
-                   }
+                    FloatingArrowButton(
+                        direction = ArrowDirection.LEFT,
+                        onClick = {
+                            coroutineScope.launch {
+                                val scrollAmount = 250
+                                val target = scrollState.value - scrollAmount
+                                scrollState.animateScrollTo(
+                                    max(0, target),
+                                    animationSpec = tween(300)
+                                )
+                            }
+                        }
+                    )
+                }
+
+                // Right arrow with AnimatedVisibility
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = canScrollRight,
+                    enter = fadeIn() + slideInHorizontally { 20 },
+                    exit = fadeOut() + slideOutHorizontally { 20 },
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .zIndex(1f)
+                ) {
+                    FloatingArrowButton(
+                        direction = ArrowDirection.RIGHT,
+                        onClick = {
+                            coroutineScope.launch {
+                                val scrollAmount = 250
+                                val target = scrollState.value + scrollAmount
+                                scrollState.animateScrollTo(
+                                    min(scrollState.maxValue, target),
+                                    animationSpec = tween(300)
+                                )
+                            }
+                        }
+                    )
+                }
+
+                // Horizontal scrollable shades
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(scrollState),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    shades.forEach { shade ->
+                        SmartShadeItem(
+                            shade = shade,
+                            isCopied = copiedShade == shade.hex,
+                            isBase = shade.label == "Base",
+                            onClick = { onShadeCopied(shade.hex) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
                 }
             }
 
@@ -617,6 +692,231 @@ private fun ColorShadesCard(
                     )
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun SmartShadeItem(
+    shade: ShadeInfo,
+    isCopied: Boolean,
+    isBase: Boolean,
+    onClick: () -> Unit
+) {
+    val selectionAnimation by animateFloatAsState(
+        targetValue = if (isCopied) 1f else 0f,
+        animationSpec = tween(durationMillis = 300),
+        label = "selectionGlow"
+    )
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = tween(durationMillis = 150),
+        label = "scaleAnimation"
+    )
+
+    val density = LocalDensity.current
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(60.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(hexToColor(shade.hex))
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null
+                ) { onClick() }
+                .drawWithContent {
+                    drawContent()
+
+                    if (isBase) {
+                        val borderWidth = with(density) { 2.dp.toPx() }
+                        val cornerRadius = with(density) { 12.dp.toPx() }
+
+                        drawRoundRect(
+                            color = Color.White,
+                            style = Stroke(width = borderWidth),
+                            cornerRadius = CornerRadius(cornerRadius)
+                        )
+
+                        drawRoundRect(
+                            color = Color.White.copy(alpha = 0.3f),
+                            style = Stroke(width = borderWidth * 2),
+                            cornerRadius = CornerRadius(cornerRadius)
+                        )
+                    }
+
+                    if (selectionAnimation > 0) {
+                        val glowColor = Color.White.copy(alpha = 0.5f * selectionAnimation)
+                        val glowWidth = with(density) { 4.dp.toPx() } * selectionAnimation
+                        val cornerRadius = with(density) { 12.dp.toPx() }
+
+                        drawRoundRect(
+                            color = glowColor,
+                            style = Stroke(width = glowWidth),
+                            cornerRadius = CornerRadius(cornerRadius)
+                        )
+
+                        drawRoundRect(
+                            color = Color.Black.copy(alpha = 0.2f * selectionAnimation),
+                            style = Stroke(width = with(density) { 2.dp.toPx() }),
+                            cornerRadius = CornerRadius(cornerRadius)
+                        )
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            if (isCopied) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.4f))
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Copied",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            if (shade.label != "Base") {
+                Text(
+                    text = shade.label,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = if (shade.percentage > 70) Color.Black else Color.White
+                    ),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 4.dp)
+                        .background(
+                            color = if (shade.percentage > 70)
+                                Color.White.copy(alpha = 0.7f)
+                            else
+                                Color.Black.copy(alpha = 0.7f),
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                )
+            }
+        }
+
+        Text(
+            text = if (shade.label == "Base") "Base" else shade.percentage.toString(),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = if (shade.label == "Base") FontWeight.Bold else FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            modifier = Modifier.padding(top = 4.dp)
+        )
+    }
+}
+
+enum class ArrowDirection {
+    LEFT, RIGHT
+}
+
+@Composable
+private fun FloatingArrowButton(
+    direction: ArrowDirection,
+    onClick: () -> Unit
+) {
+    val infiniteTransition = rememberInfiniteTransition()
+
+    // Pulse animation for the arrow
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.7f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAnimation"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                    )
+                )
+            )
+            .clickable(onClick = onClick)
+            .shadow(
+                elevation = 8.dp,
+                shape = CircleShape,
+                clip = true
+            )
+            .drawBehind {
+                // Inner shine
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.3f * pulseAlpha),
+                            Color.Transparent
+                        ),
+                        center = Offset(size.width * 0.3f, size.height * 0.3f)
+                    ),
+                    radius = size.minDimension / 2,
+                    center = center,
+                    blendMode = BlendMode.Overlay
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = if (direction == ArrowDirection.LEFT)
+                Icons.Default.ArrowBack
+            else
+                Icons.Default.ArrowForward,
+            contentDescription = if (direction == ArrowDirection.LEFT)
+                "Scroll left"
+            else
+                "Scroll right",
+            tint = Color.White,
+            modifier = Modifier.size(16.dp)
+        )
+    }
+}
+
+// Also update your Preview function to test the new scroll behavior:
+@Preview(showBackground = true, widthDp = 360, heightDp = 600)
+@Composable
+fun ColorDetailModalPreview() {
+    MaterialTheme {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            // Test with many shades to see the scroll
+            val testShades = generateShades("#E63946")
+            var copiedShade by remember { mutableStateOf<String?>(null) }
+
+            ColorShadesCard(
+                shades = testShades + testShades, // Double the shades for testing scroll
+                copiedShade = copiedShade,
+                onShadeCopied = { hex -> copiedShade = hex }
+            )
         }
     }
 }
@@ -923,22 +1223,3 @@ private fun hexToColor(hex: String): Color {
     return Color(colorLong)
 }
 
-// Preview
-@Preview(showBackground = true, widthDp = 360, heightDp = 600)
-@Composable
-fun ColorDetailModalPreview() {
-    MaterialTheme {
-        ColorDetailModal(
-            props = ColorDetailModalProps(
-                color = CustomColorInfo(
-                    name = "Crimson Sunset",
-                    hex = "#E63946",
-                    rgb = RGB(230, 57, 70),
-                    x = 0,
-                    y = 0
-                ),
-                onClose = {}
-            )
-        )
-    }
-}
