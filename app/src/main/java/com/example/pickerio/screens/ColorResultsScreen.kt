@@ -32,19 +32,11 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
-
-
-// If ColorInfo is defined elsewhere, import it:
-// import com.example.pickerio.models.ColorInfo
-// If not, define it here temporarily:
-
-// Define ColorInfo if not already imported
-data class ColorInfo(
-    val name: String,
-    val hex: String,
-    val rgb: RGB,
-    val percentage: Float
-)
+// Custom colors matching your design
+val customBackgroundColor = Color(0xFFFEF7F2)
+val darkTextColor = Color(0xFF3A3329)
+val mediumTextColor = Color(0xFF5C5346)
+val warmPrimaryColor = Color(0xFFD4A574)
 
 data class ColorResultsProps(
     val colors: List<CustomColorInfo>,
@@ -76,7 +68,7 @@ fun ColorResults(props: ColorResultsProps) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(customBackgroundColor)  // Use custom background color
     ) {
         // Animated background blobs
         ColorBlobsBackground(colors = props.colors)
@@ -84,13 +76,15 @@ fun ColorResults(props: ColorResultsProps) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 24.dp),
+                .padding(top = 40.dp),  // Increased top padding to move everything down
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Header
+            // Header - moved down
             HeaderSection(
                 colorsCount = props.colors.size,
-                onBack = props.onBack
+                onBack = props.onBack,
+                darkTextColor = darkTextColor,
+                mediumTextColor = mediumTextColor
             )
 
             // Color palette strip
@@ -107,16 +101,19 @@ fun ColorResults(props: ColorResultsProps) {
                     copiedIndex = index
                     clipboardManager.setText(AnnotatedString(text))
                 },
-                onColorSelected = { selectedColor = it }
+                onColorSelected = { selectedColor = it },
+                darkTextColor = darkTextColor,
+                mediumTextColor = mediumTextColor
             )
 
             // Bottom button
             BottomButton(
-                onClick = props.onNewPhoto
+                onClick = props.onNewPhoto,
+                darkTextColor = darkTextColor
             )
         }
 
-        // Color detail modal - Convert CustomColorInfo to ColorInfo
+        // Color detail modal
         if (selectedColor != null) {
             ColorDetailModal(
                 props = ColorDetailModalProps(
@@ -127,17 +124,6 @@ fun ColorResults(props: ColorResultsProps) {
         }
     }
 }
-
-// Conversion function: CustomColorInfo → ColorInfo
-private fun CustomColorInfo.toColorInfo(percentage: Float = 0f): ColorInfo {
-    return ColorInfo(
-        name = this.name,
-        hex = this.hex,
-        rgb = this.rgb,
-        percentage = percentage
-    )
-}
-
 
 @Composable
 private fun ColorBlobsBackground(colors: List<CustomColorInfo>) {
@@ -174,48 +160,48 @@ private fun ColorBlobsBackground(colors: List<CustomColorInfo>) {
             Box(
                 modifier = Modifier
                     .offset(
-                        x = with(density) {
-                            (xPercent * LocalConfiguration.current.screenWidthDp.dp.toPx() +
-                                    (16 * cos(blobOffset)).dp.toPx()).toDp()
-                        },
-                        y = with(density) {
-                            (yPercent * LocalConfiguration.current.screenHeightDp.dp.toPx() +
-                                    (12 * sin(blobOffset)).dp.toPx()).toDp()
-                        }
+                        x = (xPercent * LocalConfiguration.current.screenWidthDp.dp +
+                                (16 * cos(blobOffset)).dp),
+                        y = (yPercent * LocalConfiguration.current.screenHeightDp.dp +
+                                (12 * sin(blobOffset)).dp)
                     )
                     .size(256.dp)
                     .clip(CircleShape)
                     .background(
                         color = hexToColor(color.hex).copy(alpha = 0.15f)
                     )
-                    .blur(radius = 48.dp, edgeTreatment = BlurredEdgeTreatment(RoundedCornerShape(0.dp)))
             )
         }
     }
 }
 
 @Composable
-private fun HeaderSection(colorsCount: Int, onBack: () -> Unit) {
+private fun HeaderSection(
+    colorsCount: Int,
+    onBack: () -> Unit,
+    darkTextColor: Color,
+    mediumTextColor: Color
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 16.dp),
+            .padding(horizontal = 24.dp, vertical = 20.dp),  // Increased vertical padding
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(
             onClick = onBack,
             modifier = Modifier
-                .size(40.dp)
+                .size(44.dp)  // Slightly larger
                 .background(
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                    color = Color(0xFFE8DED4),  // Same as your other screens
                     shape = CircleShape
                 )
         ) {
             Icon(
                 imageVector = Icons.Default.ArrowBack,
                 contentDescription = "Back",
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.size(20.dp)
+                tint = mediumTextColor,
+                modifier = Modifier.size(22.dp)
             )
         }
 
@@ -230,21 +216,21 @@ private fun HeaderSection(colorsCount: Int, onBack: () -> Unit) {
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = FontFamily.Serif
                 ),
-                color = MaterialTheme.colorScheme.onBackground
+                color = darkTextColor
             )
 
             Text(
                 text = "$colorsCount color${if (colorsCount != 1) "s" else ""} discovered",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = mediumTextColor
             )
         }
 
         Icon(
             imageVector = Icons.Default.Palette,
             contentDescription = "Palette",
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp)
+            tint = warmPrimaryColor,
+            modifier = Modifier.size(22.dp)
         )
     }
 }
@@ -257,7 +243,10 @@ private fun PaletteStrip(colors: List<CustomColorInfo>, onColorSelected: (Custom
             .padding(horizontal = 24.dp)
             .height(64.dp),
         shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        )
     ) {
         Row(
             modifier = Modifier.fillMaxSize()
@@ -280,12 +269,14 @@ private fun ColorList(
     colors: List<CustomColorInfo>,
     copiedIndex: Int,
     onCopy: (Int, String) -> Unit,
-    onColorSelected: (CustomColorInfo) -> Unit
+    onColorSelected: (CustomColorInfo) -> Unit,
+    darkTextColor: Color,
+    mediumTextColor: Color
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         itemsIndexed(colors) { index, color ->
             ColorListItem(
@@ -293,7 +284,9 @@ private fun ColorList(
                 index = index,
                 copiedIndex = copiedIndex,
                 onCopy = onCopy,
-                onClick = { onColorSelected(color) }
+                onClick = { onColorSelected(color) },
+                darkTextColor = darkTextColor,
+                mediumTextColor = mediumTextColor
             )
         }
     }
@@ -305,87 +298,101 @@ private fun ColorListItem(
     index: Int,
     copiedIndex: Int,
     onCopy: (Int, String) -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    darkTextColor: Color,
+    mediumTextColor: Color
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
 
+    // Interactive color swatch that takes up full left side
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .height(160.dp)  // Increased height
             .clickable(onClick = onClick)
             .hoverable(interactionSource),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        border = BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outline.copy(
-                alpha = if (isHovered) 0.3f else 0.1f
-            )
+            containerColor = Color.White
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isHovered) 4.dp else 2.dp
+            defaultElevation = if (isHovered) 8.dp else 4.dp
         )
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Color preview
+            // Full-height color swatch on left
             Box(
                 modifier = Modifier
-                    .width(120.dp)
                     .fillMaxHeight()
+                    .width(100.dp)  // Fixed width for color swatch
                     .background(hexToColor(color.hex))
             ) {
-                // Gradient overlay
+                // Index badge
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    Color.White.copy(alpha = 0.2f),
-                                    Color.Transparent
-                                ),
-                                start = Offset(0f, 0f),
-                                end = Offset(1f, 1f)
-                            )
-                        )
-                )
-
-                // Index badge
-                Surface(
-                    modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(12.dp)
-                        .size(32.dp),
-                    shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.2f),
-                    tonalElevation = 2.dp
+                        .padding(16.dp)
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.9f))
+                        .border(
+                            width = 2.dp,
+                            color = hexToColor(color.hex).copy(alpha = 0.3f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
+                    Text(
+                        text = "${index + 1}",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = darkTextColor
+                        )
+                    )
+                }
+
+                // Hover hint - paintbrush icon
+                if (isHovered) {
                     Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "${index + 1}",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Colorize,
+                                contentDescription = "View details",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
                             )
-                        )
+                            Text(
+                                text = "Explore",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White
+                                )
+                            )
+                        }
                     }
                 }
             }
 
+            // Content area on right (white background)
             Column(
                 modifier = Modifier
                     .weight(1f)
+                    .fillMaxHeight()
                     .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // Color name and technical name
+                // Color name and technical name at top
                 Column {
                     Text(
                         text = color.name,
@@ -393,180 +400,158 @@ private fun ColorListItem(
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Serif
                         ),
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = darkTextColor,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
 
                     Text(
                         text = getTechnicalName(color.hex),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                        ),
+                        color = mediumTextColor
                     )
                 }
 
-                // HEX code copy button
-                CopyButton(
-                    text = color.hex,
-                    iconColor = hexToColor(color.hex),
-                    copyIndex = index * 2,
-                    copiedIndex = copiedIndex,
-                    onCopy = onCopy
-                )
-
-                // RGB copy button
-                CopyButton(
-                    text = "rgb(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b})",
-                    iconColor = MaterialTheme.colorScheme.error,
-                    copyIndex = index * 2 + 1,
-                    copiedIndex = copiedIndex,
-                    onCopy = onCopy,
-                    isRgb = true
-                )
-
-                // View details hint
-                if (isHovered) {
+                // Interactive elements at bottom
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Creative click prompt - using visual metaphor
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(warmPrimaryColor.copy(alpha = 0.1f))
+                            .clickable { onClick() }
+                            .padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = "View shades & mixture",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Insights,
+                                contentDescription = "Insights",
+                                tint = warmPrimaryColor,
+                                modifier = Modifier.size(16.dp)
                             )
-                        )
-
-                        Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "View color insights",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    color = darkTextColor
+                                )
+                            )
+                        }
 
                         Icon(
                             imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(12.dp)
+                            contentDescription = "Arrow",
+                            tint = warmPrimaryColor,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
-                }
-            }
-        }
-    }
-}
 
-@Composable
-private fun CopyButton(
-    text: String,
-    iconColor: Color,
-    copyIndex: Int,
-    copiedIndex: Int,
-    onCopy: (Int, String) -> Unit,
-    isRgb: Boolean = false
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isHovered by interactionSource.collectIsHoveredAsState()
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = { onCopy(copyIndex, text) }
-            )
-            .hoverable(interactionSource),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isHovered) {
-                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
-            } else {
-                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-            }
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isHovered) 1.dp else 0.dp
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (isRgb) {
+                    // Color value in a visually appealing way
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Box(
+                        // Color hex in a stylish pill
+                        Surface(
                             modifier = Modifier
-                                .size(6.dp, 12.dp)
-                                .clip(CircleShape)
-                                .background(Color.Red.copy(alpha = 0.8f))
-                        )
-                        Box(
+                                .weight(1f)
+                                .height(36.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .clickable { onCopy(index * 2, color.hex) }
+                                .border(
+                                    width = 1.dp,
+                                    color = hexToColor(color.hex).copy(alpha = 0.3f),
+                                    shape = RoundedCornerShape(18.dp)
+                                ),
+                            color = hexToColor(color.hex).copy(alpha = 0.1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .clip(CircleShape)
+                                        .background(hexToColor(color.hex))
+                                        .border(
+                                            width = 1.dp,
+                                            color = Color.White,
+                                            shape = CircleShape
+                                        )
+                                )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Text(
+                                    text = color.hex.uppercase(),
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        color = darkTextColor
+                                    )
+                                )
+
+                                if (copiedIndex == index * 2) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Copied",
+                                        tint = warmPrimaryColor,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Copy icon as a standalone button
+                        IconButton(
+                            onClick = { onCopy(index * 2 + 1, "rgb(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b})") },
                             modifier = Modifier
-                                .size(6.dp, 12.dp)
+                                .size(36.dp)
                                 .clip(CircleShape)
-                                .background(Color.Green.copy(alpha = 0.8f))
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp, 12.dp)
-                                .clip(CircleShape)
-                                .background(Color.Blue.copy(alpha = 0.8f))
-                        )
+                                .background(mediumTextColor.copy(alpha = 0.1f))
+                        ) {
+                            if (copiedIndex == index * 2 + 1) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Copied",
+                                    tint = warmPrimaryColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = "Copy RGB",
+                                    tint = mediumTextColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                     }
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .background(iconColor)
-                            .border(
-                                width = 1.dp,
-                                color = Color.Black.copy(alpha = 0.1f),
-                                shape = CircleShape
-                            )
-                    )
                 }
-
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            if (copiedIndex == copyIndex) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "Copied",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(16.dp)
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.ContentCopy,
-                    contentDescription = "Copy",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .size(16.dp)
-                        .alpha(if (isHovered) 1f else 0f)
-                )
             }
         }
     }
 }
 
 @Composable
-private fun BottomButton(onClick: () -> Unit) {
+private fun BottomButton(
+    onClick: () -> Unit,
+    darkTextColor: Color
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -574,11 +559,11 @@ private fun BottomButton(onClick: () -> Unit) {
                 brush = Brush.verticalGradient(
                     colors = listOf(
                         Color.Transparent,
-                        MaterialTheme.colorScheme.background
+                        customBackgroundColor
                     )
                 )
             )
-            .padding(top = 48.dp, bottom = 24.dp, start = 24.dp, end = 24.dp)
+            .padding(top = 48.dp, bottom = 32.dp, start = 24.dp, end = 24.dp)
     ) {
         Button(
             onClick = onClick,
@@ -587,8 +572,8 @@ private fun BottomButton(onClick: () -> Unit) {
                 .height(64.dp),
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.onBackground,
-                contentColor = MaterialTheme.colorScheme.background
+                containerColor = darkTextColor,
+                contentColor = customBackgroundColor
             ),
             elevation = ButtonDefaults.buttonElevation(
                 defaultElevation = 8.dp
@@ -597,7 +582,7 @@ private fun BottomButton(onClick: () -> Unit) {
             Icon(
                 imageVector = Icons.Default.CameraAlt,
                 contentDescription = "Camera",
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(22.dp)
             )
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -605,14 +590,14 @@ private fun BottomButton(onClick: () -> Unit) {
             Text(
                 text = "Discover New Colors",
                 style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.SemiBold
                 )
             )
         }
     }
 }
 
-// Helper functions
+// Helper functions (same as before)
 private fun getTechnicalName(hex: String): String {
     val cleanHex = hex.replace("#", "")
     if (cleanHex.length < 6) return "Unknown"
@@ -694,37 +679,6 @@ fun ColorResultsPreviewSmall() {
                             name = "Ocean Depth",
                             hex = "#2A9D8F",
                             rgb = RGB(42, 157, 143),
-                            x = 0,
-                            y = 0
-                        )
-                    ),
-                    onNewPhoto = {},
-                    onBack = {}
-                )
-            )
-        }
-    }
-}
-
-@Preview(showBackground = true, showSystemUi = true, widthDp = 411)
-@Composable
-fun ColorResultsPreviewMedium() {
-    MaterialTheme {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            ColorResults(
-                props = ColorResultsProps(
-                    colors = listOf(
-                        CustomColorInfo(
-                            name = "Crimson Sunset",
-                            hex = "#E63946",
-                            rgb = RGB(230, 57, 70),
-                            x = 0,
-                            y = 0
-                        ),
-                        CustomColorInfo(
-                            name = "Golden Hour",
-                            hex = "#F4A261",
-                            rgb = RGB(244, 162, 97),
                             x = 0,
                             y = 0
                         )
