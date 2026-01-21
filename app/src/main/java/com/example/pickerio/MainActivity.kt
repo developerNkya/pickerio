@@ -99,11 +99,17 @@ class MainActivity : ComponentActivity() {
                         if (colorsJson != null) {
                             val type = object : TypeToken<List<CustomColorInfo>>() {}.type
                             val colors = Gson().fromJson<List<CustomColorInfo>>(colorsJson, type)
-                            ColorResultsScreen(
-                                colors = colors,
-                                onBack = {
-                                    navController.popBackStack()
-                                }
+                            ColorResults(  // Changed from ColorResultsScreen to ColorResults
+                                props = ColorResultsProps(  // Add props wrapper
+                                    colors = colors,
+                                    onNewPhoto = {
+                                        // Navigate back to image selector for new photo
+                                        navController.popBackStack(Screen.ImageSelector.route, inclusive = false)
+                                    },
+                                    onBack = {
+                                        navController.popBackStack()
+                                    }
+                                )
                             )
                         }
                     }
