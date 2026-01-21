@@ -14,6 +14,9 @@ sealed class Screen(val route: String) {
     object PaletteDetail : Screen("palette_detail/{paletteId}") {
         fun createRoute(paletteId: String) = "palette_detail/$paletteId"
     }
+    object ColorResults : Screen("color_results/{colorsJson}") {
+        fun createRoute(colorsJson: String) = "color_results/$colorsJson"
+    }
     object Settings : Screen("settings")
 }
 
@@ -23,4 +26,5 @@ sealed class Screen(val route: String) {
 object NavArguments {
     const val IMAGE_URI = "imageUri"
     const val PALETTE_ID = "paletteId"
+    const val COLORS_JSON = "colorsJson"
 }

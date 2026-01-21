@@ -12,6 +12,8 @@ import androidx.navigation.navArgument
 import android.net.Uri
 import com.example.pickerio.screens.*
 import com.example.pickerio.ui.theme.PickerioTheme
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,12 +76,34 @@ class MainActivity : ComponentActivity() {
                                 props = ColorPickerProps(
                                     imageUri = imageUri,
                                     onColorPick = { colors ->
-                                        // TODO: Handle picked colors
+                                        val json = Uri.encode(Gson().toJson(colors))
+                                        navController.navigate(Screen.ColorResults.createRoute(json))
                                     },
                                     onBack = {
                                         navController.popBackStack()
                                     }
                                 )
+                            )
+                        }
+                    }
+
+                    composable(
+                        route = Screen.ColorResults.route,
+                        arguments = listOf(
+                            navArgument(NavArguments.COLORS_JSON) {
+                                type = NavType.StringType
+                            }
+                        )
+                    ) { backStackEntry ->
+                        val colorsJson = backStackEntry.arguments?.getString(NavArguments.COLORS_JSON)
+                        if (colorsJson != null) {
+                            val type = object : TypeToken<List<CustomColorInfo>>() {}.type
+                            val colors = Gson().fromJson<List<CustomColorInfo>>(colorsJson, type)
+                            ColorResultsScreen(
+                                colors = colors,
+                                onBack = {
+                                    navController.popBackStack()
+                                }
                             )
                         }
                     }

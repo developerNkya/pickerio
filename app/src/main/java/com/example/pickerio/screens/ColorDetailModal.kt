@@ -33,7 +33,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 data class ColorDetailModalProps(
-    val color: ColorInfo,
+    val color: CustomColorInfo,
     val onClose: () -> Unit
 )
 
@@ -76,7 +76,7 @@ fun ColorDetailModal(props: ColorDetailModalProps) {
                     .fillMaxWidth()
                     .height(160.dp)
                     .background(
-                        color = Color(hexToColor(props.color.hex)),
+                        color = hexToColor(props.color.hex),
                         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
                     )
             ) {
@@ -190,7 +190,7 @@ fun ColorDetailModal(props: ColorDetailModalProps) {
 }
 
 @Composable
-private fun ColorSummaryCard(color: ColorInfo, details: ColorDetails) {
+private fun ColorSummaryCard(color: CustomColorInfo, details: ColorDetails) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -374,7 +374,7 @@ private fun ColorMixtureCard(details: ColorDetails) {
                         modifier = Modifier
                             .fillMaxHeight()
                             .weight(details.mixture.percentages[index].toFloat())
-                            .background(Color(hexToColor(mixColorMap[mixColor] ?: "#000000")))
+                            .background(hexToColor(mixColorMap[mixColor] ?: "#000000"))
                     )
                 }
             }
@@ -399,7 +399,7 @@ private fun ColorChip(colorName: String, percentage: Int) {
                 modifier = Modifier
                     .size(24.dp)
                     .clip(CircleShape)
-                    .background(Color(hexToColor(mixColorMap[colorName] ?: "#000000")))
+                    .background(hexToColor(mixColorMap[colorName] ?: "#000000"))
                     .border(
                         width = 2.dp,
                         color = Color.White,
@@ -469,19 +469,35 @@ private fun ColorShadesCard(
                 )
             )
 
-            // Shades grid
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(9),
+            // Shades grid - Manual implementation to avoid nested scroll issues
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(shades) { shade ->
-                    ShadeItem(
-                        shade = shade,
-                        isCopied = copiedShade == shade.hex,
-                        onClick = { onShadeCopied(shade.hex) }
-                    )
+                // We have 9 items. Fixed(9) implies 9 columns?
+                // The original code used GridCells.Fixed(9).
+                // Let's render them in a single Row if 9 fits, or just use FlowRow logic manually since we know the count.
+                // Assuming we want them in one row or wrapped?
+                // Actually 9 items in one row on mobile might be tight.
+                // Let's use FlowRow if we can, or just a simple Row with wrapping logic if needed.
+                // Given "GridCells.Fixed(9)" it tried to put all 9 in one row? That seems small.
+                // Let's assume we want them to wrap comfortably.
+                // Or if the design intent was a single row of small squares:
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                   shades.forEach { shade ->
+                       // Calculate width based on weight or fixed size
+                       Box(modifier = Modifier.weight(1f).aspectRatio(1f).padding(2.dp)) {
+                           ShadeItem(
+                               shade = shade,
+                               isCopied = copiedShade == shade.hex,
+                               onClick = { onShadeCopied(shade.hex) }
+                           )
+                       }
+                   }
                 }
             }
 
@@ -518,7 +534,7 @@ private fun ShadeItem(
         modifier = Modifier
             .aspectRatio(1f)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(hexToColor(shade.hex)))
+            .background(hexToColor(shade.hex))
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { onClick() })
             }
@@ -555,7 +571,7 @@ private fun ShadeItem(
 
 @Composable
 private fun CopyButtons(
-    color: ColorInfo,
+    color: CustomColorInfo,
     copiedShade: String?,
     onCopyHex: () -> Unit,
     onCopyRgb: () -> Unit
@@ -800,13 +816,14 @@ private val mixColorMap = mapOf(
     "Black" to "#212121"
 )
 
-private fun hexToColor(hex: String): Long {
+private fun hexToColor(hex: String): Color {
     val cleanHex = hex.replace("#", "")
-    return when (cleanHex.length) {
+    val colorLong = when (cleanHex.length) {
         6 -> 0xFF000000L or cleanHex.toLong(16)
         8 -> cleanHex.toLong(16)
         else -> 0xFF000000L
     }
+    return Color(colorLong)
 }
 
 // Preview
@@ -816,11 +833,12 @@ fun ColorDetailModalPreview() {
     MaterialTheme {
         ColorDetailModal(
             props = ColorDetailModalProps(
-                color = ColorInfo(
+                color = CustomColorInfo(
                     name = "Crimson Sunset",
                     hex = "#E63946",
                     rgb = RGB(230, 57, 70),
-                    percentage = 0.25f
+                    x = 0,
+                    y = 0
                 ),
                 onClose = {}
             )
