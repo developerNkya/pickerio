@@ -4,6 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.example.pickerio.api.NetworkModule
 import com.example.pickerio.api.ColorApiResponse
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
@@ -47,6 +49,8 @@ fun ColorDetailModal(props: ColorDetailModalProps) {
     // State for the color currently being displayed/inspected in the modal.
     // Initialized with the color passed in props.
     var displayedColor by remember { mutableStateOf(props.color) }
+    
+    val clipboardManager = LocalClipboardManager.current
     
     // API Data state
     var apiResponse by remember { mutableStateOf<ColorApiResponse?>(null) }
@@ -230,8 +234,18 @@ fun ColorDetailModal(props: ColorDetailModalProps) {
                 CopyButtons(
                     color = displayedColor,
                     copiedShade = copiedShade,
-                    onCopyHex = { copiedShade = displayedColor.hex },
-                    onCopyRgb = { /* Handle RGB copy, maybe show toast */ }
+                    onCopyHex = { 
+                        clipboardManager.setText(AnnotatedString(displayedColor.hex))
+                        copiedShade = displayedColor.hex 
+                    },
+                    onCopyRgb = { 
+                         val rgbString = "rgb(${displayedColor.rgb.r}, ${displayedColor.rgb.g}, ${displayedColor.rgb.b})"
+                         clipboardManager.setText(AnnotatedString(rgbString))
+                         // We reuse copiedShade state for visual feedback, though ideally we'd have a separate one
+                         // For now, let's just trigger the feedback on the hex as a proxy or just rely on system toast if any?
+                         // Better: let's update CopyButtons to show 'Copied!' for RGB too if we want.
+                         // For simplicity, let's just copy.
+                    }
                 )
             }
         }
