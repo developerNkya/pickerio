@@ -354,34 +354,6 @@ private fun ColorListItem(
                     )
                 }
 
-                // Hover hint - paintbrush icon
-                if (isHovered) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Colorize,
-                                contentDescription = "View details",
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
-                            Text(
-                                text = "Explore",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color.White
-                                )
-                            )
-                        }
-                    }
-                }
             }
 
             // Content area on right (white background)
