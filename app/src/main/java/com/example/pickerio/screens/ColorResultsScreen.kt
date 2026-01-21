@@ -31,6 +31,10 @@ import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
+import com.example.pickerio.api.NetworkModule
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // Custom colors matching your design
 val customBackgroundColor = Color(0xFFFEF7F2)
@@ -50,6 +54,30 @@ fun ColorResults(props: ColorResultsProps) {
     var copiedIndex by remember { mutableIntStateOf(-1) }
     var selectedColor by remember { mutableStateOf<CustomColorInfo?>(null) }
     val clipboardManager = LocalClipboardManager.current
+    
+    // State to hold API names for each color: Hex -> Name
+    val apiNames = remember { mutableStateMapOf<String, String>() }
+    
+    // Fetch API names for all colors
+    LaunchedEffect(props.colors) {
+        props.colors.forEach { colorInfo ->
+            if (!apiNames.containsKey(colorInfo.hex)) {
+                launch {
+                    try {
+                        val hexClean = colorInfo.hex.replace("#", "")
+                        val response = withContext(Dispatchers.IO) {
+                            NetworkModule.api.getColor(hexClean)
+                        }
+                        apiNames[colorInfo.hex] = response.name.value
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        // Optionally set a fallback or error state, but for now we leave it loading or empty
+                        // apiNames[colorInfo.hex] = "Unknown" 
+                    }
+                }
+            }
+        }
+    }
 
     // Reset status bar colors
     LaunchedEffect(Unit) {
@@ -96,6 +124,7 @@ fun ColorResults(props: ColorResultsProps) {
             // Color list
             ColorList(
                 colors = props.colors,
+                apiNames = apiNames,
                 copiedIndex = copiedIndex,
                 onCopy = { index, text ->
                     copiedIndex = index
@@ -267,6 +296,7 @@ private fun PaletteStrip(colors: List<CustomColorInfo>, onColorSelected: (Custom
 @Composable
 private fun ColorList(
     colors: List<CustomColorInfo>,
+    apiNames: Map<String, String>,
     copiedIndex: Int,
     onCopy: (Int, String) -> Unit,
     onColorSelected: (CustomColorInfo) -> Unit,
@@ -281,6 +311,7 @@ private fun ColorList(
         itemsIndexed(colors) { index, color ->
             ColorListItem(
                 color = color,
+                apiName = apiNames[color.hex],
                 index = index,
                 copiedIndex = copiedIndex,
                 onCopy = onCopy,
@@ -295,6 +326,7 @@ private fun ColorList(
 @Composable
 private fun ColorListItem(
     color: CustomColorInfo,
+    apiName: String?,
     index: Int,
     copiedIndex: Int,
     onCopy: (Int, String) -> Unit,
@@ -366,16 +398,35 @@ private fun ColorListItem(
             ) {
                 // Color name and technical name at top
                 Column {
-                    Text(
-                        text = color.name,
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Serif
-                        ),
-                        color = darkTextColor,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
+                    if (apiName != null) {
+                        Text(
+                            text = apiName,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Serif
+                            ),
+                            color = darkTextColor,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    } else {
+                        // Loading state for list item
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = warmPrimaryColor,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Loading...",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                    color = mediumTextColor.copy(alpha = 0.5f)
+                                )
+                            )
+                        }
+                    }
 
                     Text(
                         text = getTechnicalName(color.hex),

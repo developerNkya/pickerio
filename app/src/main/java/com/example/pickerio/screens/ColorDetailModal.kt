@@ -172,16 +172,33 @@ fun ColorDetailModal(props: ColorDetailModalProps) {
                         .align(Alignment.BottomStart)
                         .padding(start = 20.dp, bottom = 20.dp, end = 20.dp)
                 ) {
-                    Text(
-                        // Use API name if available, otherwise original name
-                        text = apiResponse?.name?.value ?: displayedColor.name,
-                        style = MaterialTheme.typography.displaySmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
-                            color = Color.White
-                        ),
-                        modifier = Modifier.shadow(4.dp)
-                    )
+                    if (apiResponse != null) {
+                        Text(
+                            text = apiResponse!!.name.value,
+                            style = MaterialTheme.typography.displaySmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                                color = Color.White
+                            ),
+                            modifier = Modifier.shadow(4.dp)
+                        )
+                    } else {
+                         // Loading state for name
+                         Row(verticalAlignment = Alignment.CenterVertically) {
+                             CircularProgressIndicator(
+                                 modifier = Modifier.size(24.dp),
+                                 color = Color.White,
+                                 strokeWidth = 2.dp
+                             )
+                             Spacer(modifier = Modifier.width(8.dp))
+                             Text(
+                                text = "Identifying...",
+                                style = MaterialTheme.typography.headlineSmall.copy(
+                                    color = Color.White.copy(alpha = 0.8f)
+                                )
+                             )
+                         }
+                    }
 
                     Text(
                         text = details.technicalName,
@@ -219,12 +236,17 @@ fun ColorDetailModal(props: ColorDetailModalProps) {
                         val g = Integer.valueOf(hex.substring(3, 5), 16)
                         val b = Integer.valueOf(hex.substring(5, 7), 16)
                         
+                        // Get technical name for immediate feedback so we don't show "Shade"
+                        val techName = getColorDetails(hex).technicalName
+                        
                         displayedColor = CustomColorInfo(
                             hex = hex,
                             rgb = RGB(r, g, b),
-                            name = "Shade", // Temporary name until API updates
+                            name = techName, 
                             x = 0, y = 0
                         )
+                        // Reset API response so loading state shows for new shade
+                        apiResponse = null
                         // Also set copied shade just for feedback
                         copiedShade = hex 
                     }
