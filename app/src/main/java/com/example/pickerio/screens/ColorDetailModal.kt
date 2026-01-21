@@ -1,5 +1,10 @@
 package com.example.pickerio.screens
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.example.pickerio.api.NetworkModule
+import com.example.pickerio.api.ColorApiResponse
+
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -39,9 +44,37 @@ data class ColorDetailModalProps(
 
 @Composable
 fun ColorDetailModal(props: ColorDetailModalProps) {
+    // State for the color currently being displayed/inspected in the modal.
+    // Initialized with the color passed in props.
+    var displayedColor by remember { mutableStateOf(props.color) }
+    
+    // API Data state
+    var apiResponse by remember { mutableStateOf<ColorApiResponse?>(null) }
+    var isApiLoading by remember { mutableStateOf(false) }
+
     var copiedShade by remember { mutableStateOf<String?>(null) }
-    val shades = remember(props.color.hex) { generateShades(props.color.hex) }
-    val details = remember(props.color.hex) { getColorDetails(props.color.hex) }
+    
+    // Re-calculate these whenever displayedColor changes
+    val shades = remember(displayedColor.hex) { generateShades(displayedColor.hex) }
+    val details = remember(displayedColor.hex) { getColorDetails(displayedColor.hex) }
+
+    // Fetch API data when displayedColor changes
+    LaunchedEffect(displayedColor.hex) {
+        isApiLoading = true
+        apiResponse = null
+        try {
+            // Remove '#' for API call
+            val hexClean = displayedColor.hex.replace("#", "")
+            val response = withContext(Dispatchers.IO) {
+                NetworkModule.api.getColor(hexClean)
+            }
+            apiResponse = response
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            isApiLoading = false
+        }
+    }
 
     // Reset copied state after delay
     LaunchedEffect(copiedShade) {
@@ -76,7 +109,7 @@ fun ColorDetailModal(props: ColorDetailModalProps) {
                     .fillMaxWidth()
                     .height(160.dp)
                     .background(
-                        color = hexToColor(props.color.hex),
+                        color = hexToColor(displayedColor.hex),
                         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
                     )
             ) {
@@ -136,7 +169,8 @@ fun ColorDetailModal(props: ColorDetailModalProps) {
                         .padding(start = 20.dp, bottom = 20.dp, end = 20.dp)
                 ) {
                     Text(
-                        text = props.color.name,
+                        // Use API name if available, otherwise original name
+                        text = apiResponse?.name?.value ?: displayedColor.name,
                         style = MaterialTheme.typography.displaySmall.copy(
                             fontWeight = FontWeight.Bold,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
@@ -165,7 +199,7 @@ fun ColorDetailModal(props: ColorDetailModalProps) {
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 // Color Summary
-                ColorSummaryCard(color = props.color, details = details)
+                ColorSummaryCard(color = displayedColor, details = details, apiResponse = apiResponse)
 
                 // Color Mixture
                 ColorMixtureCard(details = details)
@@ -174,15 +208,30 @@ fun ColorDetailModal(props: ColorDetailModalProps) {
                 ColorShadesCard(
                     shades = shades,
                     copiedShade = copiedShade,
-                    onShadeCopied = { hex -> copiedShade = hex }
+                    onShadeCopied = { hex -> 
+                        // Update displayed color when a shade is clicked
+                        // We create a new CustomColorInfo for the shade
+                        val r = Integer.valueOf(hex.substring(1, 3), 16)
+                        val g = Integer.valueOf(hex.substring(3, 5), 16)
+                        val b = Integer.valueOf(hex.substring(5, 7), 16)
+                        
+                        displayedColor = CustomColorInfo(
+                            hex = hex,
+                            rgb = RGB(r, g, b),
+                            name = "Shade", // Temporary name until API updates
+                            x = 0, y = 0
+                        )
+                        // Also set copied shade just for feedback
+                        copiedShade = hex 
+                    }
                 )
 
                 // Copy buttons
                 CopyButtons(
-                    color = props.color,
+                    color = displayedColor,
                     copiedShade = copiedShade,
-                    onCopyHex = { copiedShade = props.color.hex },
-                    onCopyRgb = { /* Handle RGB copy */ }
+                    onCopyHex = { copiedShade = displayedColor.hex },
+                    onCopyRgb = { /* Handle RGB copy, maybe show toast */ }
                 )
             }
         }
@@ -190,7 +239,7 @@ fun ColorDetailModal(props: ColorDetailModalProps) {
 }
 
 @Composable
-private fun ColorSummaryCard(color: CustomColorInfo, details: ColorDetails) {
+private fun ColorSummaryCard(color: CustomColorInfo, details: ColorDetails, apiResponse: ColorApiResponse?) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -228,6 +277,18 @@ private fun ColorSummaryCard(color: CustomColorInfo, details: ColorDetails) {
                 SummaryItem(title = "HEX Code", value = color.hex.uppercase())
                 SummaryItem(title = "RGB Values",
                     value = "${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b}")
+            }
+            
+            // API Description 
+            if (apiResponse != null) {
+                 Text(
+                    text = "Description: ${apiResponse.name.value} is a ${details.temperature.lowercase()} ${details.family} visual.",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
         }
     }
@@ -463,7 +524,7 @@ private fun ColorShadesCard(
             }
 
             Text(
-                text = "Tap any shade to copy its HEX code",
+                text = "Tap any shade to view its details",
                 style = MaterialTheme.typography.bodySmall.copy(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
