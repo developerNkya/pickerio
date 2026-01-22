@@ -16,6 +16,13 @@ import com.example.pickerio.utils.OnboardingManager
 import androidx.compose.ui.platform.LocalContext
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import android.content.Intent
+import com.example.pickerio.api.VersionNetworkModule
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,6 +36,40 @@ class MainActivity : ComponentActivity() {
                 // Create navigation controller
                 val navController = rememberNavController()
                 val context = LocalContext.current
+
+                // Version Check
+                val showUpdateDialog = remember { mutableStateOf(false) }
+                val updateUrl = remember { mutableStateOf("") }
+
+                LaunchedEffect(Unit) {
+                    try {
+                        val response = VersionNetworkModule.api.checkVersion("pickerio", "2.0")
+                        if (response.status == "false") {
+                            response.download_url?.let {
+                                updateUrl.value = it
+                                showUpdateDialog.value = true
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+
+                if (showUpdateDialog.value) {
+                    AlertDialog(
+                        onDismissRequest = {},
+                        title = { Text("Update Required") },
+                        text = { Text("App is out of date and needs to be updated.") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateUrl.value))
+                                context.startActivity(intent)
+                            }) {
+                                Text("Update Now")
+                            }
+                        }
+                    )
+                }
 //                val onboardingManager = remember { OnboardingManager(context) }
 
 //                // Determine start destination based on onboarding state
