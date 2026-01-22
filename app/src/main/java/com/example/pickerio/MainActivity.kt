@@ -12,6 +12,8 @@ import androidx.navigation.navArgument
 import android.net.Uri
 import com.example.pickerio.screens.*
 import com.example.pickerio.ui.theme.PickerioTheme
+import com.example.pickerio.utils.OnboardingManager
+import androidx.compose.ui.platform.LocalContext
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -26,12 +28,33 @@ class MainActivity : ComponentActivity() {
             ) {
                 // Create navigation controller
                 val navController = rememberNavController()
+                val context = LocalContext.current
+//                val onboardingManager = remember { OnboardingManager(context) }
+
+//                // Determine start destination based on onboarding state
+//                val startDestination = remember {
+//                    if (onboardingManager.isOnboardingCompleted()) Screen.Home.route else Screen.Onboarding.route
+//                }
+
+                val startDestination = Screen.Home.route;
 
                 // Setup NavHost
                 NavHost(
                     navController = navController,
-                    startDestination = Screen.Home.route
+                    startDestination = startDestination
                 ) {
+                    // Onboarding Screen
+//                    composable(Screen.Onboarding.route) {
+//                        OnboardingScreen(
+//                            onComplete = {
+//                                onboardingManager.setOnboardingCompleted()
+//                                navController.navigate(Screen.Home.route) {
+//                                    popUpTo(Screen.Onboarding.route) { inclusive = true }
+//                                }
+//                            }
+//                        )
+//                    }
+
                     // Home Screen
                     composable(Screen.Home.route) {
                         HomeScreen(

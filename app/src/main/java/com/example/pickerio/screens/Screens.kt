@@ -18,6 +18,7 @@ sealed class Screen(val route: String) {
         fun createRoute(colorsJson: String) = "color_results/$colorsJson"
     }
     object Settings : Screen("settings")
+    object Onboarding : Screen("onboarding")
 }
 
 /**
